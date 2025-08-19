@@ -1,0 +1,59 @@
+//GROUP 7 7/11
+//BSIT-3B
+//Activity #1 Basic Math with Condition
+
+import java.util.Scanner;
+public class arithmetic {
+    public static void main(String[] args) {
+        Scanner s =new Scanner(System.in);
+        String sign;
+        int num1, num2;
+        
+        
+        System.out.print("Enter a number: ");
+        num1=s.nextInt();
+
+        System.out.println("");
+
+        System.out.print("Enter a second number: ");
+        num2=s.nextInt();
+       
+        System.out.println("");
+
+        s.nextLine();
+        
+        System.out.print("Enter a operator: ");
+        sign=s.nextLine();
+
+        System.out.print("Total: ");
+        if(sign.equals("+")){
+            System.out.println(num1 + num2);
+        }    
+        else if(sign.equals("-")){
+            System.out.println(num1 - num2);
+        }
+        else if(sign.equals("/")){
+            System.out.println(num1 / num2);
+        }
+        else if(sign.equals("*")){
+            System.out.println(num1*num2);
+        }
+        else if(sign.equals("%") ) {
+            System.out.println(num1 % num2 );
+        }
+        else if(sign.equals("//")){
+            int result = Math.floorDiv(num1, num2);
+            System.out.println(result);
+        }
+        else if(sign.equals("**")){
+            double result2 = Math.pow(num1, num2);
+            System.out.println(result2);
+        }
+        else{
+          System.out.println("The operator is not in my scope.");
+        }
+        s.close();
+        
+        
+    }
+}
