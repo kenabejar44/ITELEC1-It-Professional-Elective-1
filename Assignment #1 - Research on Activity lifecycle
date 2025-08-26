@@ -1,0 +1,51 @@
+BSIT - 3B
+
+
+package com.example.welcome
+
+import android.os.Bundle
+import android.util.Log
+import androidx.activity.ComponentActivity
+
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState);
+        Log.i("state", "oncreate");
+}
+@Override
+    override fun onStart() {
+        super.onStart();
+    Log.i("state", "onstart");
+    }
+
+    @Override
+    override fun onResume() {
+        super.onResume();
+        Log.i("state", "onresume");
+    }
+
+    @Override
+    override fun onPause() {
+        super.onPause();
+        Log.i("state", "onpause");
+    }
+
+    @Override
+    override fun onStop() {
+        super.onStop();
+        Log.i("state", "onstop");
+    }
+
+    @Override
+    override fun onRestart() {
+        super.onRestart();
+        Log.i("state", "onrestart");
+    }
+
+    @Override
+    override fun onDestroy() {
+        super.onDestroy();
+        Log.i("state", "ondestroy");
+    }
+}
