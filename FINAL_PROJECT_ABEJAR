@@ -1,0 +1,2429 @@
+-----------------
+MainActivity.java 
+-----------------
+package com.example.myapplication;
+
+import android.app.ActivityManager;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
+import android.os.Build;
+import android.os.Bundle;
+import android.graphics.Color;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import androidx.activity.EdgeToEdge;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.cardview.widget.CardView;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import com.mikhaellopez.circularprogressbar.CircularProgressBar;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.widget.Toast;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import java.util.List;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+import androidx.core.splashscreen.SplashScreen;
+
+
+public class MainActivity extends AppCompatActivity {
+    private CardView circleGreen, circleYellow, circleOrange, circleRed;
+    private CircularProgressBar circularProgressBar;
+    private TextView tvWaterLevel;
+    private static final int REQUEST_NOTIFICATION_PERMISSION = 1;
+    private boolean moderateFloodNotified = false;
+    private boolean highFloodNotified = false;
+    private boolean midFloodNotified = false;
+    private boolean lowFloodNotified = true;
+    DatabaseReference databaseReference;
+    ImageView btnMenu;
+    ImageButton btnWhistle, btnChecklist, btnCleanup;
+
+    LinearLayout sideMenu;
+    boolean isMenuOpen = false;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        setTheme(R.style.Theme_MyApplication);
+        super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_main);
+        CircularProgressBar circularProgressBar = findViewById(R.id.circularProgressBar);
+        TextView tvWaterLevel = findViewById(R.id.tvWaterLevel);
+        circleGreen = findViewById(R.id.circleGreen);
+        circleYellow = findViewById(R.id.circleYellow);
+        circleOrange = findViewById(R.id.circleOrange);
+        circleRed = findViewById(R.id.circleRed);
+        TextView tvStatusMessage = findViewById(R.id.tvStatusMessage);
+        btnMenu= findViewById(R.id.btnMenu);
+        sideMenu = findViewById(R.id.sideMenu);
+
+
+        databaseReference = FirebaseDatabase.getInstance().getReference("floodData/waterLevel");
+        databaseReference.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (snapshot.exists()) {
+                    float waterLevel = snapshot.getValue(Float.class);
+
+                    tvWaterLevel.setText(waterLevel + " CM");
+                    circularProgressBar.setProgressWithAnimation(waterLevel, 1500L);
+
+
+                    circleGreen.setCardBackgroundColor(Color.GRAY);
+                    circleYellow.setCardBackgroundColor(Color.GRAY);
+                    circleOrange.setCardBackgroundColor(Color.GRAY);
+                    circleRed.setCardBackgroundColor(Color.GRAY);
+
+                    if (waterLevel == 0) {
+                        tvStatusMessage.setText("NO flood detected. Area is safe");
+                        tvStatusMessage.setTextColor(Color.BLUE);
+                    } else if (waterLevel < 50) {
+                        circularProgressBar.setProgressBarColor(Color.GREEN);
+                        circleGreen.setCardBackgroundColor(getResources().getColor(android.R.color.holo_green_light));
+                        tvWaterLevel.setTextColor(Color.GREEN);
+                        tvStatusMessage.setText("NORMAL OPERATION: LOW Flood Detected. Stay safe.");
+                        tvStatusMessage.setTextColor(Color.GREEN);
+                        showFloodNotification("NORMAL OPERATION: LOW Flood Detected.", "Stay safe.", Color.GREEN);
+                        lowFloodNotified = true;
+                    } else if (waterLevel < 100) {
+                        circularProgressBar.setProgressBarColor(Color.YELLOW);
+                        circleYellow.setCardBackgroundColor(getResources().getColor(android.R.color.holo_orange_light));
+                        tvWaterLevel.setTextColor(Color.YELLOW);
+                        tvStatusMessage.setText("AWARENESS: Water Level is starting to rise. Stay alert!");
+                        tvStatusMessage.setTextColor(Color.YELLOW);
+                        showFloodNotification("AWARENESS: Water Level Rising", "Stay alert!", Color.YELLOW);
+                        moderateFloodNotified = true;
+                    } else if (waterLevel < 150) {
+                        circularProgressBar.setProgressBarColor(getResources().getColor(android.R.color.holo_orange_dark));
+                        circleOrange.setCardBackgroundColor(getResources().getColor(android.R.color.holo_orange_dark));
+                        tvWaterLevel.setTextColor(getResources().getColor(android.R.color.holo_orange_dark));
+                        tvStatusMessage.setText("PREPAREDNESS: Flood is rising. Prepare for possible evacuation.");
+                        tvStatusMessage.setTextColor(getResources().getColor(android.R.color.holo_orange_dark));
+                        showFloodNotification("PREPAREDNESS: Flood Rising", "Prepare for evacuation.", getResources().getColor(android.R.color.holo_orange_dark));
+                        midFloodNotified = true;
+                    } else {
+                        circularProgressBar.setProgressBarColor(Color.RED);
+                        circleRed.setCardBackgroundColor(getResources().getColor(android.R.color.holo_red_light));
+                        tvWaterLevel.setTextColor(Color.RED);
+                        tvStatusMessage.setText("RESPONSE: SEVERE Flood detected! Evacuate immediately!");
+                        tvStatusMessage.setTextColor(Color.RED);
+                        showFloodNotification("RESPONSE: SEVERE Flood detected!", "Evacuate immediately!", Color.RED);
+                        highFloodNotified = true;
+                    }
+                }
+            }
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                tvWaterLevel.setText("Error: " + error.getMessage());
+            }
+        });
+
+    ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
+    });
+    if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU){
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED){
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATION_PERMISSION);
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel("flood_alert_channel", "Flood Alerts", NotificationManager.IMPORTANCE_DEFAULT);
+            channel.setDescription("Channel for flood notification");
+
+            NotificationManager notificationManager = getSystemService(NotificationManager.class);
+            notificationManager.createNotificationChannel(channel);
+        }
+    btnMenu.setOnClickListener(v -> {
+        if (!isMenuOpen) {
+            sideMenu.animate().translationX(0).setDuration(300);
+            isMenuOpen = true;
+        } else {
+            sideMenu.animate().translationX(-sideMenu.getWidth()).setDuration(300);
+            isMenuOpen = false;
+        }
+    });
+    findViewById(R.id.tvNews).setOnClickListener(v ->
+        Toast.makeText(this, "opening News", Toast.LENGTH_SHORT).show()
+    );
+    findViewById(R.id.tvPrecautions).setOnClickListener(v ->
+        Toast.makeText(this, "Showing Safety Precautions", Toast.LENGTH_SHORT).show()
+    );
+    ImageView btnBack = findViewById(R.id.btnBack);
+    btnBack.setOnClickListener(v -> {
+        Intent intent = new Intent(this, MainActivity.class);
+        startActivity(intent);
+    });
+    TextView tvNews = findViewById(R.id.tvNews);
+    tvNews.setOnClickListener(v -> {
+        Intent intent = new Intent(MainActivity.this, NewsAct.class);
+        startActivity(intent);
+    });
+    TextView tvPrecautions = findViewById(R.id.tvPrecautions);
+    tvPrecautions.setOnClickListener(v -> {
+        Intent intent = new Intent(MainActivity.this, PREACAUTIONACT.class);
+        startActivity(intent);
+    });
+    TextView tvEmergency = findViewById(R.id.tvEvacuation);
+    tvEmergency.setOnClickListener(v -> {
+        Intent intent = new Intent(MainActivity.this, Evacuation.class);
+        startActivity(intent);
+    });
+    TextView tvHotLines = findViewById(R.id.tvHotlines);
+    tvHotLines.setOnClickListener(v -> {
+        Intent intent = new Intent(MainActivity.this, HotLines.class);
+        startActivity(intent);
+    });
+        LinearLayout btnWhistle = findViewById(R.id.btnWhistle);
+        btnWhistle.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, SOSDURING.class);
+            startActivity(intent);
+        });
+        LinearLayout btnChecklist = findViewById(R.id.btnChecklist);
+        btnChecklist.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, BEFORELIST.class);
+            startActivity(intent);
+        });
+        LinearLayout btnCleaup = findViewById(R.id.btnCleanup);
+        btnCleaup.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, CLEANUP.class);
+            startActivity(intent);
+        });
+
+
+}
+    private void showFloodNotification(String title, String message, int iconColor) {
+
+        Intent intent = new Intent (this, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "flood_alert_channel")
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle(title.toUpperCase())
+                .setContentText(message.toUpperCase())
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setColor(iconColor)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true);
+        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
+
+        if(Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED){
+            notificationManager.notify(1, builder.build());
+        }
+    }
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults){
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if(requestCode == REQUEST_NOTIFICATION_PERMISSION){
+            if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
+                Toast.makeText(this, "Notification permission granted", Toast.LENGTH_SHORT).show();
+            }else {
+                Toast.makeText(this, "Notification permission denied.", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+}
+
+
+
+------------------------
+Activty_MainActivity.XML
+------------------------
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/textView"
+        android:layout_width="150dp"
+        android:layout_height="36dp"
+        android:text="TORRENT"
+        android:textSize="32dp"
+        android:textColor="#0D47A1"
+        android:textStyle="bold"
+        android:fontFamily="sans-serif-condensed"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.935"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.039" />
+
+    <FrameLayout
+        android:id="@+id/progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        app:layout_constraintTop_toBottomOf="@id/textView"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/statusCircles"
+        android:layout_marginTop="20dp">
+
+
+        <com.mikhaellopez.circularprogressbar.CircularProgressBar
+            android:id="@+id/circularProgressBar"
+            android:layout_width="325dp"
+            android:layout_height="396dp"
+            app:cpb_background_progressbar_width="20dp"
+            app:cpb_progress_max="150"
+            app:cpb_progressbar_width="20dp"
+            app:cpb_round_border="true" />
+
+        <TextView
+            android:id="@+id/tvWaterLevel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="0 CM"
+            android:textColor="#B0B0B0"
+            android:textSize="28sp"
+            android:fontFamily="sans-serif-condensed"
+            android:textStyle="bold"
+            android:shadowColor="#000000"
+            android:shadowDx="4"
+            android:shadowDy="4"
+            android:shadowRadius="6"/>
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/statusCircles"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="35dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        app:layout_constraintTop_toBottomOf="@id/progress"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <androidx.cardview.widget.CardView
+            android:id="@+id/circleGreen"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_margin="10dp"
+            app:cardBackgroundColor="#B0B0B0"
+            app:cardCornerRadius="20dp" />
+
+        <androidx.cardview.widget.CardView
+            android:id="@+id/circleYellow"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_margin="10dp"
+            app:cardBackgroundColor="#B0B0B0"
+            app:cardCornerRadius="20dp" />
+
+        <androidx.cardview.widget.CardView
+            android:id="@+id/circleOrange"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_margin="10dp"
+            app:cardBackgroundColor="#B0B0B0"
+            app:cardCornerRadius="20dp" />
+
+        <androidx.cardview.widget.CardView
+            android:id="@+id/circleRed"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_margin="10dp"
+            app:cardBackgroundColor="#B0B0B0"
+            app:cardCornerRadius="20dp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/bottomButtons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="40dp"
+        app:layout_constraintTop_toBottomOf="@id/tvStatusMessage"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+       <LinearLayout
+           android:id="@+id/btnWhistle"
+           android:layout_width="110dp"
+           android:layout_height="60dp"
+           android:background="@drawable/btn_pastel_blue"
+           android:padding="6dp"
+           android:orientation="vertical"
+           android:gravity="center"
+           android:layout_margin="12dp">
+           
+           <ImageView
+               android:layout_width="28dp"
+               android:layout_height="28dp"
+               android:src="@drawable/whistlee1"
+               app:tint="#FFFFFF"
+               android:layout_marginLeft="6dp"
+               android:layout_marginTop="1dp"
+               android:layout_gravity="top|start"/>
+           <TextView
+               android:layout_width="wrap_content"
+               android:layout_height="wrap_content"
+               android:text="Whistle"
+               android:textStyle="bold"
+               android:textSize="15sp"
+               android:textColor="#FFFFFF"
+               android:layout_gravity="left"
+               android:layout_marginLeft="8dp"/>
+       </LinearLayout>
+        <LinearLayout
+            android:id="@+id/btnChecklist"
+            android:layout_width="110dp"
+            android:layout_height="60dp"
+            android:background="@drawable/btn_pastel_purple"
+            android:padding="6dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_margin="12dp">
+
+            <ImageView
+                android:layout_width="25dp"
+                android:layout_height="25dp"
+                android:layout_marginTop="4dp"
+                android:src="@drawable/checklist"
+                app:tint="#FFFFFF"
+                android:layout_marginLeft="6dp"
+                android:layout_gravity="top|start"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Checklist"
+                android:textStyle="bold"
+                android:textSize="15sp"
+                android:textColor="#FFFFFF"
+                android:layout_gravity="left"
+                android:layout_marginLeft="8dp"/>
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/btnCleanup"
+            android:layout_width="110dp"
+            android:layout_height="60dp"
+            android:background="@drawable/btn_pastel_orange"
+            android:padding="6dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_margin="12dp">
+
+            <ImageView
+                android:layout_width="30dp"
+                android:layout_height="28dp"
+                android:src="@drawable/cleanup"
+                app:tint="#FFFFFF"
+                android:layout_marginLeft="4dp"
+                android:layout_gravity="top|start"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="CleanUp Guide"
+                android:textStyle="bold"
+                android:textSize="15sp"
+                android:textColor="#FFFFFF"
+                android:layout_gravity="left"
+                android:layout_marginLeft="8dp"/>
+        </LinearLayout>
+    </LinearLayout>
+    <TextView
+        android:id="@+id/tvStatusMessage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="35dp"
+        android:text=""
+        android:textSize="20dp"
+        android:textColor="#1E90FF"
+        android:fontFamily="sans-serif-condensed"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:shadowColor="#000000"
+        android:shadowDx="2"
+        android:shadowDy="2"
+        android:shadowRadius="4"
+        app:layout_constraintTop_toBottomOf="@id/statusCircles"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+    <ImageView
+        android:id="@+id/btnMenu"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="24dp"
+        android:src="@drawable/menu"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"/>
+    <LinearLayout
+        android:id="@+id/sideMenu"
+        android:layout_width="200dp"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="#FFFFFF"
+        android:padding="24dp"
+        android:elevation="8dp"
+        android:translationX="-200dp"
+        android:gravity="top"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="2dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_arror_back"
+            android:contentDescription="Back"
+            app:tint="@color/black"/>
+       <TextView
+        android:id="@+id/tvNews"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="News "
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="#0D47A1"
+        android:backgroundTint="#2196F3"
+        android:padding="12dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="24dp"/>
+       <TextView
+           android:id = "@+id/tvPrecautions"
+           android:layout_width="wrap_content"
+           android:layout_height="wrap_content"
+           android:text="Precautionary Meaures"
+           android:textSize="18sp"
+           android:textColor="#0D47A1"
+           android:textStyle="bold"
+           android:layout_marginTop="24dp"
+           android:layout_marginBottom="24dp"/>
+        <TextView
+            android:id="@+id/tvEvacuation"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Evacuation Centers"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#0D47A1"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="24dp"/>
+        <TextView
+            android:id="@+id/tvHotlines"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Emergency Hotlines"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#0D47A1"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="24dp"/>
+
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+---------------------------------------------------------------------------------------------------
+---------
+News.java
+---------
+package com.example.myapplication;
+
+import android.content.Intent;
+import android.os.Bundle;
+
+import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.ImageView;
+
+
+
+public class NewsAct extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_news);
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
+        });
+        WebView webView = findViewById(R.id.webViewNews);
+        ImageView backButton=findViewById(R.id.backButton);
+
+        WebSettings webSettings=webView.getSettings();
+        webSettings.setJavaScriptEnabled(true);
+        webView.setWebViewClient(new WebViewClient());
+
+        webView.loadUrl("https://www.pagasa.dost.gov.ph/weather");
+
+       backButton.setOnClickListener(view -> {
+           Intent intent = new Intent(NewsAct.this, MainActivity.class);
+           startActivity(intent);
+       });
+    }
+}
+
+-----------------
+Activity_News.XML
+-----------------
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F5F5F5"
+    tools:context=".NewsAct">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:gravity="center_vertical"
+        android:background="#FFFFFF">
+
+        <ImageView
+            android:id="@+id/backButton"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_arror_back"
+            android:contentDescription="back"
+            app:tint="@android:color/black"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="Flood News"
+            android:textSize="20sp"
+            android:textColor="#0D47A1"
+            android:textStyle="bold"/>
+    </LinearLayout>
+
+    <WebView
+        android:id="@+id/webViewNews"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_margin="8dp"/>
+
+</LinearLayout>
+
+------------------------------------------------------------------------------------------------------------
+--------------------------
+PrecautionaryMeasures.java
+--------------------------
+package com.example.myapplication;
+
+import android.content.Intent;
+import android.os.Bundle;
+
+import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+public class PREACAUTIONACT extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_preacautionact);
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
+        });
+
+        ImageView backButton=findViewById(R.id.bButton);
+        backButton.setOnClickListener(view -> {
+            Intent intent = new Intent(PREACAUTIONACT.this, MainActivity.class);
+            startActivity(intent);
+        });
+
+    }
+
+
+}
+---------------------------------
+Activty_PrecautionaryMesaures.XML
+---------------------------------
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F5F5"
+    tools:context=".PREACAUTIONACT">
+
+    <ImageView
+        android:id="@+id/bButton"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:src="@drawable/ic_arror_back"
+        android:padding="4dp"
+        android:layout_margin="16dp"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        app:tint="@android:color/black" />
+
+    <ScrollView
+        android:id="@+id/scrollContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_constraintTop_toBottomOf="@id/bButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginTop="50dp">
+
+        <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+
+            <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="PRECAUTIONARY"
+            android:textColor="#0D47A1"
+            android:textStyle="bold"
+            android:textSize="20sp"
+            android:layout_marginLeft="10dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="2dp"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MEASURES"
+            android:textColor="#0D47A1"
+            android:textStyle="bold"
+            android:textSize="20sp"
+            android:layout_marginLeft="10dp"
+            android:layout_marginTop="0dp"
+            android:layout_marginBottom="20dp"/>
+        
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_background"
+            android:padding="16dp"
+            android:layout_marginLeft="10dp">
+
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="BEFORE"
+                android:textColor="#2ECC71"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="20sp"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Be informed by receiving alerts, warnings, and public safety information before, during, and after emergencies.\n• Find out whether your property is in a flood-prone or high-risk area. "
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Find out whether your property is in a flood-prone or high-risk area. Explore this app and go to the flood measurement page."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Contact your local Emergency Management Director to find out if your home or workplace is downstream from a dam and learn more about your community’s risk of flooding."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Create and review your family emergency plan."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Assemble an emergency kit."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Make a record of your personal property by taking photos or videos of your belongings. Store these records in a safe place."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Prepare your home for flooding."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_background"
+            android:padding="16dp"
+            android:layout_marginLeft="10dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="DURING"
+                android:textColor="#E67E22"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="20sp"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Listen to Philippine Atmospheric, Geophysical and Astronomical Services Administration (PAGASA) Weather Radio or to a local news station for the latest information."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Follow instructions given by public safety officials."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Move immediately to higher ground or stay on high ground."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• If you must evacuate your home, take only essential items and bring your pets if safe to do so."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Consider postponing outdoor activities. "
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Tie down or bring in outdoor objects (patio furniture, children's toys, trash cans, etc.) that could be swept away or damaged during flooding."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="•Consider unplugging sensitive electronic equipment before flooding occurs. But, do not touch electrical equipment if you are wet or standing in water."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Elevate items stored in your basement to prevent damage. If you have a sump pump, check that it is working."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Avoid camping or parking along streams, rivers, creeks, or other areas prone to flooding during heavy rainfall. These areas can flood rapidly and with little warning."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Consider clearing street catch basins to prevent or reduce street flooding."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_background"
+            android:padding="16dp"
+            android:layout_marginLeft="10dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="AFTER"
+                android:textColor="#E74C3C"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="20sp"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Continue to monitor the media for emergency information."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Follow instructions from public safety officials."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• If you have evacuated, return home only when authorities say it is safe to do so."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Call 137-175 to report emergencies including downed power lines and gas leaks."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Call 137-175 to obtain shelter locations and other disaster information."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Be a good neighbor. Check on family, friends, and neighbors, especially the elderly, those who live alone, those with medical conditions, and those who may need extra help."
+                android:textColor="#000000"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"/>
+        </LinearLayout>
+
+      </LinearLayout>
+
+    </ScrollView>
+
+</RelativeLayout>
+--------------------------------------------------------------------------------------------------------
+---------------------
+EvacuationCenter.java
+---------------------
+package com.example.myapplication;
+
+import android.content.Intent;
+import android.os.Bundle;
+import android.widget.ImageView;
+
+import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
+public class Evacuation extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_evacuation);
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
+        });
+
+        ImageView buButton=findViewById(R.id.buButton);
+        buButton.setOnClickListener(v -> {
+            Intent intent = new Intent(Evacuation.this, MainActivity.class);
+            startActivity(intent);
+        });
+    }
+}
+
+-----------------------------
+Activity_EvacuationCenter.XML
+-----------------------------
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".Evacuation">
+
+    <ImageView
+        android:id="@+id/buButton"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:src="@drawable/ic_arror_back"
+        android:contentDescription="back"
+        android:layout_gravity="start"
+        android:padding="4dp"
+        app:tint="@android:color/black"
+        android:layout_marginTop="15dp"
+        android:layout_marginLeft="10dp"/>
+
+
+    <ScrollView
+        android:id="@+id/scrollContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_constraintTop_toBottomOf="@id/buButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginTop="50dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="EVACUATION CENTERS"
+        android:textColor="#0D47A1"
+        android:textStyle="bold"
+        android:textSize="20sp"
+        android:layout_marginLeft="10dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="2dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:layout_marginLeft="10dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Barangay Sucat"
+                android:textStyle="bold"
+                android:textSize="30sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="20dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/sucatcourt"
+                android:background="@drawable/image_border"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Barangay Hall Covered Court"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/sucat_elem"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Sucat Elementary School"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/bago_sucat"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Bagong Silang Elementary School"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Barangay Buli"
+                android:textStyle="bold"
+                android:textSize="30sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="20dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/buli_court"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Buli Covered Court"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/buli_elem"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Buli Elementart School"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Barangay Cupang"
+                android:textStyle="bold"
+                android:textSize="30sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="20dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/multi_cupang"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="JRF Multi Purpose Hall Building"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/cupang_elem"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Cupang Elementary School-Main"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/cupang_shs"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Cupang Senior High School"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Barangay Alabang"
+                android:textStyle="bold"
+                android:textSize="30sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="20dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/alabang_main"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Alabang Elementary School main Covered Court"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/pedhs_court_alabang"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Pedro E. Diaz High School Covered Court"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Barangay Bayanan"
+                android:textStyle="bold"
+                android:textSize="30sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="20dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/bayanan_coveredcourt"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Bayanan Baywalk Covered Court"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Barangay Putatan"
+                android:textStyle="bold"
+                android:textSize="30sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="20dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/solders_elem"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Soldiers Hills Elementary School"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/putata_coverdcourt"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Putatan Covered Court"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/putatan_elem"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Putatan Elementary School"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/putatann"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="South Greenheights Covered Court"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/villar"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Villar Covered Court"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Barangay Poblacion"
+                android:textStyle="bold"
+                android:textSize="30sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="20dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/mun_pobla"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Muntinlupa Evacuation Center"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/munt_pob"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Muntinlupa Elementary School"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/itaas_pobla"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Itaas Elementary School"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/nationa_pobla"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Muntinlupa National High School"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/elem_pobla"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Poblacion Elementary School"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Barangay Tunasan"
+                android:textStyle="bold"
+                android:textSize="30sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="20dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/tunasan_elem"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Tunasan Elementary School"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="180dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/jrf_tunasan"
+                android:background="@drawable/image_border"
+                android:layout_marginTop="20dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Victoria Homes, JRF Covered Court"
+                android:gravity="center_horizontal"
+                android:textStyle="italic"
+                android:textSize="15sp"
+                android:textColor="#0D47A1"
+                android:layout_marginTop="16dp"/>
+
+
+        </LinearLayout>
+      </LinearLayout>
+    </ScrollView>
+
+</RelativeLayout>
+--------------------------------------------------------------------
+----------------------
+EmergencyHotlines.java
+----------------------
+package com.example.myapplication;
+
+import android.content.Intent;
+import android.os.Bundle;
+import android.widget.ImageView;
+
+import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
+public class HotLines extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_hot_lines);
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
+        });
+
+        ImageView gButton=findViewById(R.id.gButton);
+        gButton.setOnClickListener(v -> {
+            Intent intent = new Intent(HotLines.this, MainActivity.class);
+            startActivity(intent);
+        });
+    }
+}
+
+------------------------------
+Activity_EmergencyHotlines.XML
+------------------------------
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".HotLines">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+    <ImageView
+        android:id="@+id/gButton"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:src="@drawable/ic_arror_back"
+        android:contentDescription="back"
+        android:layout_gravity="start"
+        android:padding="4dp"
+        app:tint="@android:color/black"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MUNTINLUPA EMERGENCY HOTLINES:"
+            android:textColor="#0D47A1"
+            android:textStyle="bold"
+            android:textSize="20sp"
+            android:layout_marginLeft="10dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="2dp"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_background"
+            android:layout_marginTop="16dp"
+            android:padding="16dp"
+            android:layout_marginLeft="10dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="EMERGENCY HOTLINE"
+                android:textColor="#0D47A1"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:gravity="center_horizontal"
+                android:layout_gravity="center_horizontal"
+                android:textSize="20sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="137-135"
+                android:textColor="#0D47A1"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:gravity="center_horizontal"
+                android:layout_gravity="center_horizontal"
+                android:textSize="30sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="GLOBE-HOTLINE"
+                android:textColor="#0D47A1"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:gravity="center_horizontal"
+                android:layout_gravity="center_horizontal"
+                android:textSize="20sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="0927-257-9322"
+                android:textColor="#0D47A1"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:gravity="center_horizontal"
+                android:layout_gravity="center_horizontal"
+                android:textSize="30sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="SMART-HOTLINE"
+                android:textColor="#0D47A1"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:gravity="center_horizontal"
+                android:layout_gravity="center_horizontal"
+                android:textSize="20sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="0921-542-7123"
+                android:textColor="#0D47A1"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:gravity="center_horizontal"
+                android:layout_gravity="center_horizontal"
+                android:textSize="30sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="LANDLINE"
+                android:textColor="#0D47A1"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:gravity="center_horizontal"
+                android:layout_gravity="center_horizontal"
+                android:textSize="20sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="8373-5165"
+                android:textColor="#0D47A1"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:gravity="center_horizontal"
+                android:layout_gravity="center_horizontal"
+                android:textSize="30sp"/>
+
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>
+
+--------------------------------------------------------------
+------------------
+WhistleButton.java
+------------------
+package com.example.myapplication;
+
+import android.Manifest;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraManager;
+import android.media.MediaPlayer;
+import android.os.Bundle;
+import android.os.Handler;
+import android.widget.Button;
+import android.widget.ImageView;
+
+import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
+public class SOSDURING extends AppCompatActivity {
+    private CameraManager cameraManager;
+    private String cameraId;
+    private boolean isFlashing = false;
+    private Handler handler = new Handler();
+    private MediaPlayer mediaPlayer;
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_sosduring);
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
+        });
+        Button sosButton=findViewById(R.id.sosButton);
+        cameraManager=(CameraManager) getSystemService(CAMERA_SERVICE);
+
+        if(ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 50);
+        }
+
+        try{
+            cameraId=cameraManager.getCameraIdList()[0];
+        }catch (CameraAccessException e){
+            e.printStackTrace();
+        }
+
+        sosButton.setOnClickListener(v -> {
+            if(mediaPlayer == null){
+                mediaPlayer = MediaPlayer.create(SOSDURING.this, R.raw.whist);
+                mediaPlayer.start();
+            }else{
+                mediaPlayer.start();
+            }
+            if(!isFlashing){
+                isFlashing=true;
+                startFlashing();
+            }else{
+                isFlashing=false;
+                stopFlashing();
+            }
+
+        });
+
+
+
+        ImageView bakButton=findViewById(R.id.bakButton);
+        bakButton.setOnClickListener(view -> {
+            Intent intent = new Intent(SOSDURING.this, MainActivity.class);
+            startActivity(intent);
+        });
+
+    }
+    private void startFlashing(){
+        handler.postDelayed(new Runnable(){
+            @Override
+            public void run(){
+                if(isFlashing){
+                    try{
+                        cameraManager.setTorchMode(cameraId, true);
+                        handler.postDelayed(()->{
+                            try{
+                                cameraManager.setTorchMode(cameraId,false);
+                            }catch(CameraAccessException e){
+                                e.printStackTrace();
+                            }
+                        },200);
+                    }catch(CameraAccessException e){
+                        e.printStackTrace();
+                    }
+                    handler.postDelayed(this, 400);
+                }
+            }
+
+        },0);
+    }
+    private void stopFlashing(){
+        handler.removeCallbacksAndMessages(null);
+        try{
+            cameraManager.setTorchMode(cameraId,false);
+        }catch(CameraAccessException e){
+            e.printStackTrace();
+        }
+        if(mediaPlayer  != null){
+            mediaPlayer.stop();
+            mediaPlayer.release();
+            mediaPlayer=null;
+        }
+    }
+
+}
+
+--------------------------
+Activity_WhistleButton.XML
+--------------------------
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".SOSDURING">
+
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+    <ImageView
+        android:id="@+id/bakButton"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:src="@drawable/ic_arror_back"
+        android:contentDescription="back"
+        android:layout_gravity="start"
+        android:padding="4dp"
+        app:tint="@android:color/black"
+        android:layout_marginTop="20dp"
+        android:layout_marginLeft="5dp"/>
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="WHISTLE BUTTON!"
+        android:textColor="#0D47A1"
+        android:textStyle="bold"
+        android:textSize="20sp"
+        android:layout_marginLeft="20dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="20dp"/>
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/sosButton"
+        android:layout_width="350dp"
+        android:layout_height="350dp"
+        android:text="WHISTLE"
+        android:textSize="50sp"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#0D47A1"
+        android:layout_centerInParent="true"
+        android:background="@drawable/label_during"
+        android:padding="20dp"/>
+
+
+
+</RelativeLayout>
+----------------------------------------------------------------
+--------------
+CheckList.java
+--------------
+package com.example.myapplication;
+
+import android.content.Intent;
+import android.os.Bundle;
+import android.widget.Button;
+import android.widget.ImageView;
+
+import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
+public class BEFORELIST extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_beforelist);
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
+        });
+
+        Button DButton=findViewById(R.id.DButton);
+        DButton.setOnClickListener(view -> {
+            Intent intent = new Intent(BEFORELIST.this, MainActivity.class);
+            startActivity(intent);
+        });
+
+
+        ImageView baButton=findViewById(R.id.baButton);
+        baButton.setOnClickListener(view -> {
+            Intent intent = new Intent(BEFORELIST.this, MainActivity.class);
+            startActivity(intent);
+        });
+    }
+}
+
+----------------------
+Activity_CheckList.XML
+-----------------------
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    tools:context=".BEFORELIST">
+
+    <ImageView
+        android:id="@+id/baButton"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:src="@drawable/ic_arror_back"
+        android:contentDescription="back"
+        android:layout_gravity="start"
+        android:padding="4dp"
+        app:tint="@android:color/black"
+        android:layout_marginTop="20dp"
+        android:layout_marginLeft="5dp"/>
+
+
+    <ScrollView
+        android:id="@+id/scrollContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_constraintTop_toBottomOf="@id/baButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginTop="50dp">
+
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="CHECKLIST ACTIVITY"
+            android:textColor="#0D47A1"
+            android:textStyle="bold"
+            android:textSize="20sp"
+            android:layout_marginLeft="20dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="20dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Home Preparation"
+                android:textStyle="bold"
+                android:textColor="#0D47A1"
+                android:textSize="18sp"
+                android:layout_marginLeft="20dp"/>
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/card_background">
+
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Elevate electrical outlets, appliances, and furniture."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Move important documents, valuables, and electronics to higher places."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Check your roof and fix any leaks."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="turn off electricity, gas, and water."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Unplug all appliances and keep cords above ground level."/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Emergency Kit Preparation"
+                android:textStyle="bold"
+                android:textColor="#0D47A1"
+                android:textSize="18sp"
+                android:layout_marginLeft="20dp"/>
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/card_background">
+
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Prepare a “Go Bag” with essentials (clothes, food, water, flashlight, batteries)."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Include a first aid kit and necessary medicines."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Add emergency contact numbers written on paper."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Include raincoat, boots, and an emergency whistle."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Prepare copies of important documents in waterproof plastic."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Include whistle for attracting rescue attention."/>
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Family and Pet Safety"
+                android:textStyle="bold"
+                android:textColor="#0D47A1"
+                android:textSize="18sp"
+                android:layout_marginLeft="20dp"/>
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/card_background">
+
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Teach everyone where the nearest evacuation center is."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Create a family communication and evacuation plan."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Prepare pet carriers and food for your pets."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Save emergency hotlines in all family members’ phones."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Make sure pets wear collars with ID tags."/>
+            <CheckBox
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Keep a spare leash or harness in the emergency kit."/>
+        </LinearLayout>
+        <Button
+            android:id="@+id/DButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="GOOD TO GO!"
+            android:layout_marginTop="12dp"
+            android:backgroundTint="#0D47A1"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"/>
+    </LinearLayout>
+  </ScrollView>
+
+</RelativeLayout>
+------------------------------------------------------------------------------
+----------------------
+CleanUpGuidelines.java
+----------------------
+package com.example.myapplication;
+
+import android.content.Intent;
+import android.os.Bundle;
+import android.widget.ImageView;
+
+import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
+public class CLEANUP extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_cleanup);
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
+        });
+
+        ImageView imageView = findViewById(R.id.bacButton);
+        imageView.setOnClickListener(v -> {
+            Intent intent = new Intent(CLEANUP.this, MainActivity.class);
+            startActivity(intent);
+        });
+    }
+}
+
+-------------------------
+Activity_CleanUpGuide.XML
+-------------------------
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".CLEANUP">
+
+    <ImageView
+        android:id="@+id/bacButton"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:src="@drawable/ic_arror_back"
+        android:contentDescription="back"
+        android:layout_gravity="start"
+        android:padding="4dp"
+        app:tint="@android:color/black"
+        android:layout_marginTop="20dp"
+        android:layout_marginLeft="5dp"/>
+
+    <ScrollView
+        android:id="@+id/scrollContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_constraintTop_toBottomOf="@id/bacButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginTop="50dp">
+
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="CLEAN UP GUIDE"
+            android:textColor="#0D47A1"
+            android:textStyle="bold"
+            android:textSize="35sp"
+            android:layout_marginLeft="20dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="20dp"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/card_background">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="1.Safety First "
+                android:textColor="#0D47A1"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="25sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Avoid entering flooded areas until authorities declare it safe."
+                android:textColor="#4A4A4A"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Turn off electricity and gas before entering. Water conducts electricity and gas leaks can be deadly."
+                android:textColor="#4A4A4A"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Wear protective gear: gloves, boots, masks (N95 if possible), and long sleeves."
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Keep children and pets away from contaminated areas."
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="2. Remove Water"
+                android:textColor="#0D47A1"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="25sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Use pumps, wet/dry vacuums, or buckets to remove standing water."
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Open doors and windows to improve ventilation."
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Use dehumidifiers and fans to dry out areas quickly."
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="3. Remove Contaminated Items"
+                android:textColor="#0D47A1"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="25sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Discard items that cannot be cleaned or sanitized, including: "
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Food, beverages, and medicines exposed to floodwater"
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginLeft="20dp"
+                android:textSize="13sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Mattresses, pillows, and stuffed toys"
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginLeft="20dp"
+                android:textSize="13sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Carpets, rugs, and insulation soaked in contaminated water"
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginLeft="20dp"
+                android:textSize="13sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Clean salvageable items with soap and water, then disinfect."
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="4. Clean and Disinfect"
+                android:textColor="#0D47A1"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="25sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Scrub walls, floors, furniture, and hard surfaces with hot water and detergent.."
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Use a disinfectant solution (e.g., 1 cup bleach per 4 liters of water) to kill germs."
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Clean salvageable items with soap and water, then disinfect."
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="5. Health Considerations"
+                android:textColor="#0D47A1"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="25sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Watch for signs of illness or infection after cleanup (rash, fever, stomach issues)."
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Watch for the rusty materials to avoid tatanus"
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="• Wash hands frequently and avoid direct contact with contaminated water."
+                android:textColor="#4A4A4A "
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:layout_gravity="center_horizontal"
+                android:textSize="16sp"/>
+        </LinearLayout>
+    </LinearLayout>
+  </ScrollView>
+</RelativeLayout>
+-------------------------------------------------------------------------------------------------------------
